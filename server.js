@@ -600,7 +600,10 @@ REMEMBER: NO EXCUSES. NO APOLOGIES. NO EXPLANATIONS. JUST THE STORY.`;
 });
 
 const port = Number(process.env.PORT) || 3000;
-const server = app.listen(port, () => {
+// const server = app.listen(port, () => {
+//   console.log(`[shadow-draft-chatbot] listening on http://localhost:${port}`);
+// });
+const server = app.listen(port, "0.0.0.0", () => {
   console.log(`[shadow-draft-chatbot] listening on http://localhost:${port}`);
 });
 server.on('error', (err) => {
