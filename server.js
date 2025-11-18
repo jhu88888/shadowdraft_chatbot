@@ -3,6 +3,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
 const XAI_API_URL = 'https://api.x.ai/v1/chat/completions';
@@ -11,6 +12,55 @@ const XAI_API_URL = 'https://api.x.ai/v1/chat/completions';
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
+
+// 顶层：Telegram Bot 接入（使用长轮询）
+const botToken = process.env.TELEGRAM_BOT_TOKEN;
+if (botToken) {
+  const bot = new TelegramBot(botToken, { polling: true });
+  console.log('[telegram] bot started with polling');
+
+  bot.on('message', async (msg) => {
+    try {
+      const chatId = msg.chat.id;
+      const text = msg.text || '';
+
+      if (!text.trim()) {
+        await bot.sendMessage(chatId, '请发送要生成的故事主题或提示语。');
+        return;
+      }
+
+      const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000/api/chat';
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-User-Email': process.env.TELEGRAM_USER_EMAIL || 'you@example.com'
+      };
+
+      const payload = {
+        prompt: text,
+        max_words: 800,
+        target_language: 'zh',
+        mode: 'generate',
+        adult_mode: true
+      };
+
+      const { data } = await axios.post(apiUrl, payload, { headers, timeout: 60000 });
+      const title = data?.title || '生成结果';
+      const content = data?.content || '';
+
+      // 分段发送，避免 Telegram 消息过长失败
+      const reply = `【${title}】\n${content}`;
+      const maxChunk = 3900;
+      for (let i = 0; i < reply.length; i += maxChunk) {
+        await bot.sendMessage(chatId, reply.slice(i, i + maxChunk));
+      }
+    } catch (err) {
+      console.error('[telegram] error:', err?.response?.data || err?.message || err);
+      await bot.sendMessage(msg.chat.id, '生成失败，请稍后重试。');
+    }
+  });
+} else {
+  console.warn('[telegram] TELEGRAM_BOT_TOKEN 未配置，跳过 Telegram 集成。');
+}
 
 // 新增：非法 JSON 统一返回 400，而不是 HTML 错误页
 app.use((err, req, res, next) => {
