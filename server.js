@@ -1,10 +1,12 @@
-/* Express server that proxies /api/chat to xAI Grok chat completions */
 
+/* Express server that proxies /api/chat to xAI Grok chat completions */
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
-const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
+const { Telegraf } = require('telegraf');
+const TelegramBot = require('node-telegram-bot-api');
+const USE_NODE_TELEGRAM_API = process.env.USE_NODE_TELEGRAM_API === 'true';
 
 const XAI_API_URL = 'https://api.x.ai/v1/chat/completions';
 
@@ -13,9 +15,9 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
 
-// 顶层：Telegram Bot 接入（使用长轮询）
+// 顶层旧版 node-telegram-bot-api 轮询启动块
 const botToken = process.env.TELEGRAM_BOT_TOKEN;
-if (botToken) {
+if (botToken && USE_NODE_TELEGRAM_API) {
   const bot = new TelegramBot(botToken, { polling: true });
   console.log('[telegram] bot started with polling');
 
@@ -102,11 +104,6 @@ app.post('/api/chat', async (req, res) => {
 
     if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
       return res.status(400).json({ error: 'Invalid request: prompt is required' });
-    }
-
-    // 拒绝 adult_mode（与示例成人越权内容不合规）
-    if (adult_mode === true) {
-      return res.status(400).json({ error: 'adult_mode is not allowed' });
     }
 
     // 1) 构建 customPersonality
@@ -649,10 +646,77 @@ REMEMBER: NO EXCUSES. NO APOLOGIES. NO EXPLANATIONS. JUST THE STORY.`;
   }
 });
 
+// Telegraf Telegram Bot 集成（长轮询）
+const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+if (tgToken && !USE_NODE_TELEGRAM_API) {
+  const bot = new Telegraf(tgToken);
+  console.log('[telegram] telegraf bot started (polling)');
+
+  bot.start(async (ctx) => {
+    await ctx.reply('嗨，我是 ShadowDraft Telegraf Bot。\n直接发我一句话，我会帮你生成或续写内容（中文）。');
+  });
+
+  bot.on('text', async (ctx) => {
+    const userText = ctx.message?.text?.trim() || '';
+    const chatId = ctx.chat?.id;
+
+    if (!userText) {
+      return ctx.reply('我暂时只能处理文本消息~');
+    }
+
+    try {
+      await ctx.reply('收到啦，我在思考中……');
+
+      const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000/api/chat';
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-User-Email': process.env.TELEGRAM_USER_EMAIL || 'you@example.com'
+      };
+
+      const payload = {
+        prompt: userText,
+        max_words: 800,
+        target_language: 'zh',
+        mode: 'generate'
+      };
+
+      const { data } = await axios.post(apiUrl, payload, { headers, timeout: 60000 });
+      const title = data?.title || '生成结果';
+      const content = data?.content || '';
+
+      const reply = `【${title}】\n${content}`;
+      const maxChunk = 3500;
+      if (reply.length <= maxChunk) {
+        await ctx.reply(reply);
+      } else {
+        for (let i = 0; i < reply.length; i += maxChunk) {
+          await ctx.reply(reply.slice(i, i + maxChunk));
+        }
+      }
+    } catch (err) {
+      console.error('[telegram] telegraf error:', err?.response?.data || err?.message || err);
+      await ctx.reply('后端好像出了点问题（可能是 API 或模型），稍后再试试~');
+    }
+  });
+
+  // 在启动轮询前清理 webhook，并丢弃积压更新，避免冲突
+  (async () => {
+    try {
+      await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+      await bot.launch();
+      console.log('ShadowDraft Telegraf Bot is running...');
+    } catch (err) {
+      console.error('[telegram] failed to launch telegraf:', err?.response?.data || err?.message || err);
+    }
+  })();
+
+  process.once('SIGINT', () => bot.stop('SIGINT'));
+  process.once('SIGTERM', () => bot.stop('SIGTERM'));
+} else {
+  console.warn('[telegram] TELEGRAM_BOT_TOKEN 未配置，跳过 Telegraf 集成。');
+}
+
 const port = Number(process.env.PORT) || 3000;
-// const server = app.listen(port, () => {
-//   console.log(`[shadow-draft-chatbot] listening on http://localhost:${port}`);
-// });
 const server = app.listen(port, "0.0.0.0", () => {
   console.log(`[shadow-draft-chatbot] listening on http://localhost:${port}`);
 });
