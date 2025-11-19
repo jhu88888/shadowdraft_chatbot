@@ -38,17 +38,17 @@ if (botToken && USE_NODE_TELEGRAM_API) {
       const text = msg.text || '';
       const userId = msg.from?.id;
 
-      // ... existing code ...
+      if (text.startsWith('/')) return;
 
       // 生成前检查 credits
       if (getCredits(userId) < COST_PER_STORY) {
-        await bot.sendMessage(chatId, `点数不够（当前 ${getCredits(userId)}），点击下方按钮充值。`, {
-          reply_markup: {
-            inline_keyboard: [[{ text: '充值', callback_data: 'BUY_CREDITS' }]]
-          }
-        });
-        return;
+    await bot.sendMessage(chatId, `点数不够（当前 ${getCredits(userId)}），点击下方按钮充值。`, {
+      reply_markup: {
+        inline_keyboard: [[{ text: '充值', callback_data: 'BUY_CREDITS' }]]
       }
+    });
+    return;
+  }
 
       const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000/api/generateStory';
       const headers = {
@@ -85,13 +85,15 @@ if (botToken && USE_NODE_TELEGRAM_API) {
         return;
       }
 
+      if (text.startsWith('/')) return;
+
       // 生成前检查点数
       const balance = getCredits(uid);
-      console.log('[telegram] balance:', balance);
-      if (balance < COST_PER_STORY) {
-        await bot.sendMessage(chatId, `余额不足（需要${COST_PER_STORY}点，当前${balance}点）。请在 Telegraf Bot 中使用 /buy 充值。`);
-        return;
-      }
+  console.log('[telegram] balance:', balance);
+  if (balance < COST_PER_STORY) {
+    await bot.sendMessage(chatId, `余额不足（需要${COST_PER_STORY}点，当前${balance}点）。请在 Telegraf Bot 中使用 /buy 充值。`);
+    return;
+  }
 
       const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000/api/generateStory';
       const headers = {
@@ -213,6 +215,8 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
   bot.on('text', async (ctx) => {
     const userText = ctx.message?.text?.trim() || '';
     const chatId = ctx.chat?.id;
+
+    if (userText.startsWith('/')) return;
 
     if (!userText) {
       return ctx.reply('我暂时只能处理文本消息~');
