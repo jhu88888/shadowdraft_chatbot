@@ -64,7 +64,13 @@ if (botToken && USE_NODE_TELEGRAM_API) {
       // 分段发送结果
       // ... existing code ...
     } catch (err) {
-      // ... existing code ...
+      const status = err?.response?.status;
+      if (status === 402) {
+        await bot.sendMessage(msg.chat.id, '余额不足，请在 Telegraf Bot 中使用 /buy 充值后再试。');
+      } else {
+        console.error('[telegram] error:', err?.response?.data || err?.message || err);
+        await bot.sendMessage(msg.chat.id, '生成失败，请稍后重试。');
+      }
     }
   });
 
@@ -121,6 +127,59 @@ if (botToken && USE_NODE_TELEGRAM_API) {
         await bot.sendMessage(msg.chat.id, '生成失败，请稍后重试。');
       }
     }
+  });
+
+  bot.onText(/^\/addfunds$/, async (msg) => {
+    try {
+      const chatId = msg.chat.id;
+      const userId = msg.from?.id;
+      const defaultOrigin = 'http://localhost:3000';
+      const origin = (() => {
+        try {
+          return new URL(process.env.API_BASE_URL || defaultOrigin).origin;
+        } catch (_) {
+          return defaultOrigin;
+        }
+      })();
+      const url = `${origin}/api/credits/add`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Telegram-User-Id': String(userId)
+      };
+      const { data } = await axios.post(url, { amount: 100 }, { headers, timeout: 15000 });
+      await bot.sendMessage(chatId, `已为你充值 ${data.added} 点，当前余额：${data.balance}`);
+    } catch (err) {
+      console.error('[telegram] /addfunds error:', err?.response?.data || err?.message || err);
+      await bot.sendMessage(msg.chat.id, '充值失败，请稍后再试。');
+    }
+  });
+
+  // 新增：/balance 命令（查询余额）
+  bot.onText(/^\/balance$/, async (msg) => {
+    try {
+      const chatId = msg.chat.id;
+      const userId = msg.from?.id;
+      const defaultOrigin = 'http://localhost:3000';
+      const origin = (() => {
+        try {
+          return new URL(process.env.API_BASE_URL || defaultOrigin).origin;
+        } catch (_) {
+          return defaultOrigin;
+        }
+      })();
+      const url = `${origin}/api/credits/balance`;
+      const headers = { 'X-Telegram-User-Id': String(userId) };
+      const { data } = await axios.get(url, { headers, timeout: 15000 });
+      await bot.sendMessage(chatId, `当前余额：${data.balance} 点`);
+    } catch (err) {
+      console.error('[telegram] /balance error:', err?.response?.data || err?.message || err);
+      await bot.sendMessage(msg.chat.id, '查询失败，请稍后再试。');
+    }
+  });
+
+  // 新增：/helps 命令（返回帮助文本）
+  bot.onText(/^\/helps$/, async (msg) => {
+    await bot.sendMessage(msg.chat.id, 'helps');
   });
 } else {
   console.warn('[telegram] TELEGRAM_BOT_TOKEN 未配置，跳过 Telegram 集成。');
@@ -192,6 +251,57 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
       console.error('[telegram] telegraf error:', err?.response?.data || err?.message || err);
       await ctx.reply('后端好像出了点问题（可能是 API 或模型），稍后再试试~');
     }
+  });
+
+  bot.command('addfunds', async (ctx) => {
+    try {
+      const userId = ctx.from?.id;
+      const defaultOrigin = 'http://localhost:3000';
+      const origin = (() => {
+        try {
+          return new URL(process.env.API_BASE_URL || defaultOrigin).origin;
+        } catch (_) {
+          return defaultOrigin;
+        }
+      })();
+      const url = `${origin}/api/credits/add`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Telegram-User-Id': String(userId)
+      };
+      const { data } = await axios.post(url, { amount: 100 }, { headers, timeout: 15000 });
+      await ctx.reply(`已为你充值 ${data.added} 点，当前余额：${data.balance}`);
+    } catch (err) {
+      console.error('[telegram] telegraf /addfunds error:', err?.response?.data || err?.message || err);
+      await ctx.reply('充值失败，请稍后再试。');
+    }
+  });
+
+  // 新增：/balance 命令（查询余额）
+  bot.command('balance', async (ctx) => {
+    try {
+      const userId = ctx.from?.id;
+      const defaultOrigin = 'http://localhost:3000';
+      const origin = (() => {
+        try {
+          return new URL(process.env.API_BASE_URL || defaultOrigin).origin;
+        } catch (_) {
+          return defaultOrigin;
+        }
+      })();
+      const url = `${origin}/api/credits/balance`;
+      const headers = { 'X-Telegram-User-Id': String(userId) };
+      const { data } = await axios.get(url, { headers, timeout: 15000 });
+      await ctx.reply(`当前余额：${data.balance} 点`);
+    } catch (err) {
+      console.error('[telegram] telegraf /balance error:', err?.response?.data || err?.message || err);
+      await ctx.reply('查询失败，请稍后再试。');
+    }
+  });
+
+  // 新增：/helps 命令（返回帮助文本）
+  bot.command('helps', async (ctx) => {
+    await ctx.reply('helps');
   });
 
   // 在启动轮询前清理 webhook，并丢弃积压更新，避免冲突
