@@ -4,22 +4,17 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 require('dotenv').config();
-const { getUserKeyFromHeaders, getCredits, addCredits, deductCredits } = require('./services/credits-sqlite');
 const healthRouter = require('./routes/health');
 const apiRouter = require('./routes/api');
 
 
-const { Telegraf, Markup } = require('telegraf');
-const TelegramBot = require('node-telegram-bot-api');
+const { Telegraf } = require('telegraf');
 const USE_NODE_TELEGRAM_API = process.env.USE_NODE_TELEGRAM_API === 'true';
-
-const { USE_TELEGRAM_STARS, PAYMENT_PROVIDER_TOKEN, CREDIT_PACK_STARS, CREDIT_PACK_AMOUNT, COST_PER_STORY } = require('./constants');
 
 // Express app setup (top-level)
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '1mb' }));
-
 
 // 新增：非法 JSON 统一返回 400，而不是 HTML 错误页
 app.use((err, req, res, next) => {
@@ -43,7 +38,7 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
   console.log('[telegram] telegraf bot started (polling)');
 
   bot.start(async (ctx) => {
-    await ctx.reply('嗨，我是 ShadowDraft Telegraf Bot。\n直接发我一句话，我会帮你生成或续写内容（中文）。');
+    await ctx.reply('嗨，我是 潜墨(ShadowDraft)。\n直接发我一句话，我会帮你生成或续写内容（中文）。');
   });
 
   bot.on('text', async (ctx) => {
@@ -102,6 +97,31 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
   });
 
   bot.command('addfunds', async (ctx) => {
+    try {
+      console.log('[telegram] /addfunds command received');
+      const userId = ctx.from?.id;
+      const defaultOrigin = 'http://localhost:3000';
+      const origin = (() => {
+        try {
+          return new URL(process.env.API_BASE_URL || defaultOrigin).origin;
+        } catch (_) {
+          return defaultOrigin;
+        }
+      })();
+      const url = `${origin}/api/credits/add`;
+      const headers = {
+        'Content-Type': 'application/json',
+        'X-Telegram-User-Id': String(userId)
+      };
+      const { data } = await axios.post(url, { amount: 100 }, { headers, timeout: 15000 });
+      await ctx.reply(`已为你充值 ${data.added} 点，当前余额：${data.balance}`);
+    } catch (err) {
+      console.error('[telegram] telegraf /addfunds error:', err?.response?.data || err?.message || err);
+      await ctx.reply('充值失败，请稍后再试。');
+    }
+  });
+
+  bot.command('/addfunds', async (ctx) => {
     try {
       console.log('[telegram] /addfunds command received');
       const userId = ctx.from?.id;
