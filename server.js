@@ -1,5 +1,5 @@
 
-/* Express server that proxies /api/chat to xAI Grok chat completions */
+/* Express server that proxies /api/generateStory to xAI Grok chat completions */
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -162,7 +162,7 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
     try {
       await ctx.reply('收到啦，我在思考中……');
 
-      const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000/api/chat';
+      const apiUrl = process.env.API_BASE_URL || 'http://localhost:3000/api/generateStory';
       const headers = {
         'Content-Type': 'application/json',
         'X-User-Email': process.env.TELEGRAM_USER_EMAIL || 'you@example.com'
