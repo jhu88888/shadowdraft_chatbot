@@ -222,8 +222,16 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
 
     console.log('[telegram] received text:', userText);
 
-    if (userText.startsWith('/')) return;
-
+    // 新增判断：仅拦截 /addfunds /balance /helps，其它 /xxxx 不 return
+  if (userText.startsWith('/')) {
+    const firstToken = userText.split(/\s+/)[0];
+    const commandName = firstToken.split('@')[0].toLowerCase();
+    const passthrough = new Set(['/addfunds', '/balance', '/helps']);
+    if (passthrough.has(commandName)) {
+      return; // 这三个命令交给命令处理器
+    }
+    // 未命中的其它 /xxxx，将继续走 generateStory 的逻辑
+  }
     if (!userText) {
       return ctx.reply('我暂时只能处理文本消息~');
     }
