@@ -259,6 +259,7 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
 
   bot.command('addfunds', async (ctx) => {
     try {
+      console.log('[telegram] /addfunds command received');
       const userId = ctx.from?.id;
       const defaultOrigin = 'http://localhost:3000';
       const origin = (() => {
@@ -284,6 +285,7 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
   // 新增：/balance 命令（查询余额）
   bot.command('balance', async (ctx) => {
     try {
+      console.log('[telegram] /balance command received');
       const userId = ctx.from?.id;
       const defaultOrigin = 'http://localhost:3000';
       const origin = (() => {
@@ -305,7 +307,13 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
 
   // 新增：/helps 命令（返回帮助文本）
   bot.command('helps', async (ctx) => {
-    await ctx.reply('helps');
+    try {
+      console.log('[telegram] /helps command received');
+      await ctx.reply('helps');
+    } catch (err) {
+      console.error('[telegram] telegraf /helps error:', err?.response?.data || err?.message || err);
+      await ctx.reply('查询失败，请稍后再试。');
+    }
   });
 
   // 在启动轮询前清理 webhook，并丢弃积压更新，避免冲突
