@@ -38,6 +38,8 @@ if (botToken && USE_NODE_TELEGRAM_API) {
       const text = msg.text || '';
       const userId = msg.from?.id;
 
+      console.log('[telegram] received message1:', text);
+
       if (text.startsWith('/')) return;
 
       // 生成前检查 credits
@@ -84,6 +86,8 @@ if (botToken && USE_NODE_TELEGRAM_API) {
         await bot.sendMessage(chatId, '请发送要生成的故事主题或提示语。');
         return;
       }
+
+      console.log('[telegram] received message2:', text);
 
       if (text.startsWith('/')) return;
 
@@ -215,6 +219,8 @@ if (tgToken && !USE_NODE_TELEGRAM_API) {
   bot.on('text', async (ctx) => {
     const userText = ctx.message?.text?.trim() || '';
     const chatId = ctx.chat?.id;
+
+    console.log('[telegram] received text:', userText);
 
     if (userText.startsWith('/')) return;
 
